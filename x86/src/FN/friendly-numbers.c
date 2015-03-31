@@ -7,7 +7,10 @@
 #include <global.h>
 #include <omp.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
 #include <util.h>
+#include <timer.h>
 #include "fn.h"
 
 /*
@@ -60,54 +63,62 @@ int friendly_numbers(int start, int end)
 	int range;    /* Range of numbers.           */
 	int i, j;     /* Loop indexes.               */
 	int nfriends; /* Number of friendly numbers. */
-	int *tasks;   /* Tasks.                      */
-	int tid;      /* Thread id.                  */
+	int tid;
+	uint64_t t1, t2, *total;
 	
+	nfriends = 0;
 	range = end - start + 1;
 	
 	num = smalloc(sizeof(int)*range);
 	den = smalloc(sizeof(int)*range);
-	tasks = smalloc(sizeof(int)*range);
 	
-	/* Balance workload. */
-	balance(tasks, range, nthreads);
+	total = scalloc(nthreads, sizeof(uint64_t));
 	
 	/* Compute abundances. */
-	#pragma omp parallel private(i, j, tid, n) default(shared)
+	#pragma omp parallel private(i, j, tid, t1, t2, n)
 	{
 		tid = omp_get_thread_num();
 		
+		#pragma omp for schedule(static)
 		for (i = start; i <= end; i++) 
-		{	
+		{
+			t1 = timer_get();
+			
 			j = i - start;
-				
-			/* Not my task. */
-			if (tasks[j] != tid)
-				continue;
-				
+							
 			num[j] = sumdiv(i);
 			den[j] = i;
 				
 			n = gcd(num[j], den[j]);
 			num[j] /= n;
 			den[j] /= n;
+			
+			t2 = timer_get();
+			
+			total[tid] += timer_diff(t1, t2);
+		}
+		
+		/* Check friendly numbers. */
+		#pragma omp for reduction(+:nfriends) schedule(static)
+		for (i = 1; i < range; i++)
+		{
+			t1 = timer_get();
+			
+			for (j = 0; j < i; j++)
+			{
+				/* Friends. */
+				if ((num[i] == num[j]) && (den[i] == den[j]))
+					nfriends++;
+			}
+			
+			t2 = timer_get();
+			total[tid] += timer_diff(t1, t2);
 		}
 	}
+	
+	for (i = 0; i < nthreads; i++)
+		fprintf(stderr, "  thread %d: %f\n", i, total[i]*MICROSEC);
 
-	/* Check friendly numbers. */
-	nfriends = 0;
-	#pragma omp parallel for private(i, j) default(shared) reduction(+:nfriends)
-	for (i = 1; i < range; i++)
-	{
-		for (j = 0; j < i; j++)
-		{
-			/* Friends. */
-			if ((num[i] == num[j]) && (den[i] == den[j]))
-				nfriends++;
-		}	
-	}
-
-	free(tasks);
 	free(num);
 	free(den);
 	

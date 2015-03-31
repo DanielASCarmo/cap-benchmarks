@@ -27,11 +27,11 @@ struct problem
 };
 
 /* Problem sizes. */
-static struct problem tiny     =  {   10001,   14096 };
-static struct problem small    =  {  100001,  116384 };
-static struct problem standard =  {  500001,  532768 };
-static struct problem large    =  { 2000001, 2032768 };
-static struct problem huge     =  { 8000001, 8065536 };
+static struct problem tiny     =  { 1,    4096 };
+static struct problem small    =  { 1,   16384 };
+static struct problem standard =  { 1,   65536 };
+static struct problem large    =  { 1,  262144 };
+static struct problem huge     =  { 1, 1048576 };
 
 /* Be verbose? */
 int verbose = 0;
@@ -148,6 +148,8 @@ int main(int argc, char **argv)
 	
 	readargs(argc, argv);
 	
+	printf("timing statistics:\n");
+	
 	timer_init();
 	omp_set_num_threads(nthreads);
 	
@@ -166,7 +168,6 @@ int main(int argc, char **argv)
 	power = power_end();
 #endif
 	
-	printf("timing statistics:\n");
 	printf("  total time:    %f\n", timer_diff(start, end)*MICROSEC);
 
 #ifdef _XEON_PHI_
